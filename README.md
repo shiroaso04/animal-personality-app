@@ -1,54 +1,77 @@
-# React + TypeScript + Vite
+# 動物性格診断アプリ (Animal Personality Quiz)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+日本語の動物性格診断アプリケーションです。あなたの性格や行動パターンから、最も似ている動物を見つけ出します。
 
-Currently, two official plugins are available:
+## 概要
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+このアプリは、ユーザーの回答を分析して、その人の性格特性に最も近い動物を特定します。質問に答えていくと、前の回答を踏まえて次の問いかけを選ぶ「対話するような診断」方式で、より正確な結果を提供します。
 
-## Expanding the ESLint configuration
+## 特徴
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- 日本語インターフェース
+- インタラクティブな質問形式
+- 詳細な性格特性分析
+- 視覚的に分かりやすい結果表示
+- レスポンシブデザイン
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+## 技術スタック
+
+- React 18
+- TypeScript
+- Vite
+- Material-UI (MUI)
+- ベイジアン推論アルゴリズム
+
+## デザイン
+
+- メインカラー: 青色 (#3498db) - 特に高い一致度や重要な要素に使用
+- 中程度の一致: オレンジ色 (#f39c12)
+- 低い一致: 赤色 (#e74c3c)
+- シンプルで洗練されたUI
+- 数値による視覚的表現（プログレスバーとパーセント表示）
+
+## 開発方法
+
+### 必要条件
+
+- Node.js 16.0以上
+- npm 7.0以上
+
+### インストール
+
+```bash
+# リポジトリをクローン
+git clone https://github.com/shiroaso04/animal-personality-app.git
+
+# ディレクトリに移動
+cd animal-personality-app
+
+# 依存関係をインストール
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 開発サーバーの起動
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
+```bash
+npm run dev
 ```
+
+### ビルド
+
+```bash
+npm run build
+```
+
+## 使い方
+
+1. トップページから「診断スタート」をクリック
+2. 質問に順番に回答
+3. 診断結果で自分に最も近い動物と性格特性を確認
+
+## ライセンス
+
+MIT
+
+---
+
+© 2025 shiroaso04
