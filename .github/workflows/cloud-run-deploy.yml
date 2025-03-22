@@ -2,8 +2,6 @@ name: Deploy to Cloud Run
 
 on:
   push:
-    branches:
-      - main
     tags:
       - 'v*'  # vから始まるタグが作成された時に実行
 
