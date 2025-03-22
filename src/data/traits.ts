@@ -39,7 +39,7 @@ export const traits: BehavioralTrait[] = [
   },
   {
     id: 'vocal',
-    name: '声を出す',
+    name: 'おしゃべり',
     description: '音や鳴き声を通じてコミュニケーションをとる傾向',
     importanceWeight: 6
   },
@@ -51,13 +51,13 @@ export const traits: BehavioralTrait[] = [
   },
   {
     id: 'hierarchical',
-    name: '階層的',
+    name: '序列重視',
     description: '社会的順位や階層を重視する傾向',
     importanceWeight: 8
   },
   {
     id: 'independent',
-    name: '独立性',
+    name: '自立的',
     description: '他人に頼ることなく自分で物事を行う傾向',
     importanceWeight: 9
   },
@@ -69,7 +69,7 @@ export const traits: BehavioralTrait[] = [
   },
   {
     id: 'energetic',
-    name: 'エネルギー豊富',
+    name: '活動的',
     description: '高い活動レベルと活力を示す傾向',
     importanceWeight: 5
   }

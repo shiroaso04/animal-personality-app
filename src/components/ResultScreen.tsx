@@ -145,6 +145,8 @@ const ResultScreen = () => {
                   ?.filter((traitMatch, index, self) => 
                     index === self.findIndex(t => t.trait.id === traitMatch.trait.id)
                   )
+                  // 上位6つの特性のみを表示
+                  ?.slice(0, 6)
                   ?.map(traitMatch => {
                     // 特性の強さをパーセンテージで表現
                     const strengthValue = traitMatch.level === 'high' ? 100 : traitMatch.level === 'medium' ? 60 : traitMatch.level === 'low' ? 30 : 0;
@@ -152,9 +154,45 @@ const ResultScreen = () => {
                     
                     return (
                       <Box key={traitMatch.trait.id} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Typography variant="body2" sx={{ minWidth: 100, fontWeight: 'medium' }}>
-                          {traitMatch.trait.name}
-                        </Typography>
+                        <Box sx={{ minWidth: 100, display: 'flex', alignItems: 'center' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                            {traitMatch.trait.name}
+                          </Typography>
+                          <Tooltip
+                            title={
+                              <Box sx={{ p: 1 }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 'medium', color: '#2c3e50', mb: 1 }}>
+                                  {traitMatch.trait.name}
+                                </Typography>
+                                <Typography variant="body2" sx={{ color: '#34495e', lineHeight: 1.6 }}>
+                                  {traitMatch.trait.description}
+                                </Typography>
+                              </Box>
+                            }
+                            arrow
+                            placement="top"
+                            componentsProps={{
+                              tooltip: {
+                                sx: {
+                                  bgcolor: 'rgba(255, 255, 255, 0.95)',
+                                  borderRadius: 2,
+                                  boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                                  p: 2,
+                                  border: '1px solid rgba(52, 152, 219, 0.2)'
+                                }
+                              },
+                              arrow: {
+                                sx: {
+                                  color: 'rgba(255, 255, 255, 0.95)'
+                                }
+                              }
+                            }}
+                          >
+                            <IconButton size="small" sx={{ ml: 0.5, p: 0.2, color: 'rgba(0, 0, 0, 0.4)' }}>
+                              <InfoIcon sx={{ fontSize: '0.9rem' }} />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
                         <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                           <Box sx={{ flex: 1, height: 8, bgcolor: 'rgba(0,0,0,0.1)', borderRadius: 4 }}>
                             <Box 
@@ -251,14 +289,14 @@ const ResultScreen = () => {
                     )}
                   </Box>
                   <Typography variant="body2" color="text.secondary">
-                    一致度: {Math.round(match.score * 100)}%
+                    一致度: {Math.max(0, Math.min(100, Math.round(match.score * 100)))}%
                   </Typography>
                 </Grid>
                 <Grid item xs={4}>
                   <Box sx={{ width: '100%', height: 10, bgcolor: 'rgba(0,0,0,0.1)', borderRadius: 5 }}>
                     <Box 
                       sx={{ 
-                        width: `${Math.round(match.score * 100)}%`, 
+                        width: `${Math.max(0, Math.min(100, Math.round(match.score * 100)))}%`, 
                         height: '100%', 
                         bgcolor: index === 0 ? '#3498db' : '#95a5a6',
                         borderRadius: 5 
@@ -281,6 +319,8 @@ const ResultScreen = () => {
                         ?.filter((traitMatch, index, self) => 
                           index === self.findIndex(t => t.trait.id === traitMatch.trait.id)
                         )
+                        // 上位6つの特性のみを表示
+                        ?.slice(0, 6)
                         ?.map((traitMatch: TraitMatch) => {
                         // 特性の強さをパーセンテージで表現
                         const strengthValue = traitMatch.level === 'high' ? 100 : 

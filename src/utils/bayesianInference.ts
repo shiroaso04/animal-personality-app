@@ -220,57 +220,106 @@ export const selectBestQuestion = (
     return null;
   }
   
+  // 既に質問された特性の数を計算
+  const askedQuestionsObjects = questions.filter(q => askedQuestions.includes(q.id));
+  const askedTraits = new Set<string>();
+  const traitCoverage = new Map<string, number>(); // 各特性がいくつの質問でカバーされたか
+  
+  // すでに質問された特性とそのカバレッジを計算
+  askedQuestionsObjects.forEach(q => {
+    q.relatedTraits.forEach(relation => {
+      askedTraits.add(relation.traitId);
+      const currentCount = traitCoverage.get(relation.traitId) || 0;
+      traitCoverage.set(relation.traitId, currentCount + 1);
+    });
+  });
+  
+  // 上位の候補動物とその確率
+  const topCandidates = Object.entries(candidateAnimals)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .reduce((obj, [id, prob]) => ({ ...obj, [id]: prob }), {});
+  
   // Calculate scores for each question
   const questionScores = availableQuestions.map(question => {
-    // Calculate narrowing score dynamically
-    const narrowingScore = calculateNarrowingScore(question, candidateAnimals, animals);
+    // Calculate narrowing score dynamically using top candidates
+    const narrowingScore = calculateNarrowingScore(question, topCandidates, animals);
     
     // 特性のカバレッジを計算
     const coveredTraits = new Set<string>();
+    const traitWeights = new Map<string, number>();
+    
     question.relatedTraits.forEach(relation => {
       coveredTraits.add(relation.traitId);
+      traitWeights.set(relation.traitId, relation.matchScore);
     });
     
-    // 既に質問された特性の数を計算
-    const askedQuestionsObjects = questions.filter(q => askedQuestions.includes(q.id));
-    const askedTraits = new Set<string>();
-    askedQuestionsObjects.forEach(q => {
-      q.relatedTraits.forEach(relation => {
-        askedTraits.add(relation.traitId);
-      });
-    });
-    
-    // 新しい特性をカバーする質問のボーナス
+    // 新しい特性をカバーする質問へのボーナス
     let newTraitBonus = 0;
-    coveredTraits.forEach(trait => {
-      if (!askedTraits.has(trait)) {
-        newTraitBonus += 3;
+    let traitRedundancyPenalty = 0;
+    
+    coveredTraits.forEach(traitId => {
+      // 新しい特性に対するボーナス
+      if (!askedTraits.has(traitId)) {
+        // 重要度に応じてボーナスを増加
+        const trait = traits.find(t => t.id === traitId);
+        const importanceWeight = trait ? trait.importanceWeight / 5 : 1;
+        newTraitBonus += 5 * importanceWeight;
+      } else {
+        // すでに評価済みの特性に対するペナルティ
+        const coverage = traitCoverage.get(traitId) || 0;
+        // すでに複数回評価された特性に対するペナルティ
+        traitRedundancyPenalty += Math.min(5, coverage * 1.5);
       }
     });
     
-    // Combine scores based on the stage of the test
+    // 質問の難易度を考慮（複雑すぎる質問や曖昧な質問は後回し）
+    const clarityBonus = question.correctnessScore / 5;
+    
+    // 関連特性の数に応じたボーナス (2-3の特性を評価する質問が最適)
+    const optimalTraitsCount = Math.min(3, Math.max(0, 3 - Math.abs(question.relatedTraits.length - 2.5)));
+    
+    // 重要な特性への重み付けを考慮
+    let traitImportanceScore = 0;
+    question.relatedTraits.forEach(relation => {
+      const trait = traits.find(t => t.id === relation.traitId);
+      if (trait) {
+        traitImportanceScore += trait.importanceWeight * (relation.matchScore / 10);
+      }
+    });
+    
+    // テストの段階に応じて最終スコアを計算
     let finalScore = 0;
     
-    // Early stage: focus on traits with high weights and diversifying
+    // Early stage: 多様な特性を評価することに重点
     if (stage === 'early') {
-      // 重要な特性への重み付けを考慮
-      let traitImportanceScore = 0;
-      question.relatedTraits.forEach(relation => {
-        const trait = traits.find(t => t.id === relation.traitId);
-        if (trait) {
-          traitImportanceScore += trait.importanceWeight * (relation.matchScore / 10);
-        }
-      });
-      
-      finalScore = 0.6 * traitImportanceScore + 0.2 * narrowingScore + 0.2 * question.correctnessScore + newTraitBonus;
+      finalScore = 0.3 * traitImportanceScore + 
+                  0.2 * narrowingScore + 
+                  0.1 * question.correctnessScore + 
+                  newTraitBonus * 1.2 - 
+                  traitRedundancyPenalty * 1.5 +
+                  optimalTraitsCount * 2 +
+                  clarityBonus;
     }
-    // Middle stage: balance between narrowing and correctness
+    // Middle stage: 候補を絞り込むことと新しい特性のバランス
     else if (stage === 'middle') {
-      finalScore = 0.5 * narrowingScore + 0.3 * question.correctnessScore + newTraitBonus;
+      finalScore = 0.2 * traitImportanceScore + 
+                  0.4 * narrowingScore + 
+                  0.2 * question.correctnessScore + 
+                  newTraitBonus - 
+                  traitRedundancyPenalty +
+                  optimalTraitsCount * 1.5 +
+                  clarityBonus;
     }
-    // Late stage: focus on high correctness for final refinement
+    // Late stage: 高確率の候補をさらに絞り込むことに重点
     else if (stage === 'late') {
-      finalScore = 0.3 * narrowingScore + 0.7 * question.correctnessScore;
+      finalScore = 0.1 * traitImportanceScore + 
+                  0.5 * narrowingScore + 
+                  0.3 * question.correctnessScore + 
+                  newTraitBonus * 0.5 - 
+                  traitRedundancyPenalty * 0.5 +
+                  optimalTraitsCount +
+                  clarityBonus * 1.5;
     }
     
     return { question, score: finalScore };
@@ -326,8 +375,8 @@ export const evaluateCandidates = (
       // 回答に基づいてスコアを調整
       const direction = answer ? 1 : -1;
       
-      // この特性に対する重み付けスコア
-      const score = direction * traitRelation.matchScore * (question.correctnessScore / 10);
+      // この特性に対する重み付けスコア（絶対値を小さく調整）
+      const score = direction * traitRelation.matchScore * (question.correctnessScore / 20);
       
       // 各動物についてこの特性のスコアを更新
       animals.forEach(animal => {
@@ -338,7 +387,8 @@ export const evaluateCandidates = (
   
   // Calculate final match scores for each animal
   const animalMatches = animals.map(animal => {
-    let totalScore = 0;
+    let totalTraitScore = 0;
+    let totalPossibleScore = 0;
     const traitMatches: TraitMatch[] = [];
     
     // For each trait, calculate how well it matches
@@ -360,11 +410,19 @@ export const evaluateCandidates = (
       // Weight by trait importance
       const importance = trait.importanceWeight / 10;
       
-      // Calculate final trait match score
-      const matchScore = traitScore * levelMultiplier * importance;
+      // 特性の絶対値スコアを計算
+      const rawScore = Math.abs(traitScore);
+      // 方向性が合致しているかを確認 (正のスコアは正の特性に、負のスコアは負の特性に)
+      const directionMultiplier = (traitScore > 0 && traitLevel !== 'none') ? 1 : 0.2;
+      
+      // Calculate final trait match score (must be positive)
+      const matchScore = Math.abs(traitScore) * levelMultiplier * importance * directionMultiplier;
+      
+      // Add to total possible score for normalization
+      totalPossibleScore += rawScore * 1.5 * importance; // 最大値を計算
       
       // Add to total score
-      totalScore += matchScore;
+      totalTraitScore += matchScore;
       
       // Add to trait matches list
       if (traitLevel !== 'none') {
@@ -380,9 +438,16 @@ export const evaluateCandidates = (
       }
     });
     
+    // 特性スコアを0-1の範囲に正規化
+    const normalizedTraitScore = totalPossibleScore > 0 
+      ? Math.min(1, Math.max(0, totalTraitScore / totalPossibleScore))
+      : 0;
+    
     // Add in the base probability from Bayesian updates
     const baseProbability = candidateAnimals[animal.id] || 0;
-    totalScore = totalScore * 0.7 + baseProbability * 10 * 0.3;
+    
+    // 特性スコアとベイジアン確率の重み付け調整
+    const totalScore = normalizedTraitScore * 0.6 + baseProbability * 0.4;
     
     // Sort trait matches by match score
     traitMatches.sort((a, b) => b.matchScore - a.matchScore);
