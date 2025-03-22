@@ -55,15 +55,18 @@ export const TestProvider: React.FC<{ children: React.ReactNode }> = ({ children
       [],
       initialProbabilities,
       filteredAnimals,
-      0
+      'early'
     );
+
+    // 質問がない場合はデフォルトの最初の質問を使用
+    const initialQuestion = firstQuestion || allQuestions[0];
 
     setState({
       ...initialState,
       questions: allQuestions,
       candidateAnimals: initialProbabilities,
-      currentQuestion: firstQuestion,
-      questionHistory: [firstQuestion], // Initialize with the first question
+      currentQuestion: initialQuestion,
+      questionHistory: [initialQuestion], // Initialize with the first question
       stage: 'testing'
     });
   };
@@ -119,7 +122,9 @@ export const TestProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updatedAskedQuestions.forEach(questionId => {
       const question = allQuestions.find(q => q.id === questionId);
       if (question) {
-        evaluatedTraits.add(question.relatedTraitId);
+        question.relatedTraits.forEach(relation => {
+          evaluatedTraits.add(relation.traitId);
+        });
       }
     });
     
@@ -149,21 +154,56 @@ export const TestProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ...state,
         answers: updatedAnswers,
         askedQuestions: updatedAskedQuestions,
-        questionHistory: updatedQuestionHistory,
         candidateAnimals: updatedProbabilities,
         stage: 'results',
         resultAnimal,
         topMatches: finalScores.slice(0, 3) // Top 3 matches
       });
     } else {
-      // Select the next best question
+      // Determine the stage of testing based on the number of questions asked
+      let testStage: 'early' | 'middle' | 'late' = 'middle';
+      
+      if (updatedAskedQuestions.length <= 3) {
+        testStage = 'early';
+      } else if (updatedAskedQuestions.length >= 10) {
+        testStage = 'late';
+      }
+      
+      // Select the next question
       const nextQuestion = selectBestQuestion(
         allQuestions,
         updatedAskedQuestions,
         updatedProbabilities,
         filteredAnimals,
-        updatedAskedQuestions.length
+        testStage
       );
+
+      // 質問がない場合（すべての質問を尋ねた場合など）はテストを終了
+      if (!nextQuestion) {
+        // Calculate final scores
+        const finalScores = evaluateCandidates(
+          updatedProbabilities,
+          filteredAnimals,
+          updatedAnswers,
+          allQuestions
+        );
+  
+        // Get result animal (top match)
+        const resultAnimal = finalScores.length > 0 ? finalScores[0].animal : null;
+  
+        setState({
+          ...state,
+          answers: updatedAnswers,
+          askedQuestions: updatedAskedQuestions,
+          candidateAnimals: updatedProbabilities,
+          currentQuestion: null,
+          resultAnimal,
+          topMatches: finalScores.slice(0, 3), // Top 3 matches
+          stage: 'results',
+          questionHistory: updatedQuestionHistory
+        });
+        return;
+      }
 
       setState({
         ...state,

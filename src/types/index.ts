@@ -33,15 +33,18 @@ export interface Animal {
 }
 
 // Define a question for the personality test
+export interface TraitRelation {
+  traitId: string;
+  matchScore: number; // 特性との関連の強さ
+  narrowingScore: number; // 回答の確実性
+}
+
+// Define a question for the personality test
 export interface Question {
   id: string;
   text: string;
-  relatedTraitId: string;
-  narrowingScore?: number; // Dynamic score for narrowing down candidates
-  correctnessScore?: number; // Dynamic score for ensuring accuracy
-  negationScore?: number; // Score for negation power
-  matchScore?: number; // Score for matching important traits
-  excludeScore?: number; // Score for excluding based on low correlation
+  relatedTraits: TraitRelation[]; // 複数の特性との関連
+  correctnessScore: number; // 質問自体の信頼性
 }
 
 // Define trait match information

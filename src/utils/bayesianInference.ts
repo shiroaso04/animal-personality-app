@@ -12,112 +12,81 @@ export const calculateNarrowingScore = (
   candidateAnimals: Record<string, number>,
   animals: Animal[]
 ): number => {
-  // Get the related trait
-  const relatedTraitId = question.relatedTraitId;
+  // 複数の特性に対する平均narrowingScoreを計算
+  let totalNarrowingScore = 0;
   
-  // Count how many animals have each level of this trait
-  const traitDistribution: Record<TraitLevel, number> = {
-    'high': 0,
-    'medium': 0,
-    'low': 0,
-    'none': 0
-  };
+  // 各関連特性について情報エントロピーを計算
+  for (const traitRelation of question.relatedTraits) {
+    const relatedTraitId = traitRelation.traitId;
+    
+    // Count how many animals have each level of this trait
+    const traitDistribution: Record<TraitLevel, number> = {
+      'high': 0,
+      'medium': 0,
+      'low': 0,
+      'none': 0
+    };
+    
+    // Count animals with each trait level, weighted by their current probability
+    Object.entries(candidateAnimals).forEach(([animalId, probability]) => {
+      const animal = animals.find(a => a.id === animalId);
+      if (animal) {
+        const trait = animal.traits[relatedTraitId];
+        const traitLevel = trait ? trait.level : 'none';
+        traitDistribution[traitLevel] += probability;
+      }
+    });
+    
+    // Calculate entropy before answering the question
+    // Higher entropy means more uncertainty, more potential for narrowing
+    let entropy = 0;
+    Object.values(traitDistribution).forEach(count => {
+      if (count > 0) {
+        const proportion = count / Object.values(candidateAnimals).reduce((sum, prob) => sum + prob, 0);
+        entropy -= proportion * Math.log2(proportion);
+      }
+    });
+    
+    // 特性ごとの情報エントロピーに特性のnarrowingScoreで重み付け
+    totalNarrowingScore += entropy * traitRelation.narrowingScore;
+  }
   
-  // Count animals with each trait level, weighted by their current probability
-  Object.entries(candidateAnimals).forEach(([animalId, probability]) => {
-    const animal = animals.find(a => a.id === animalId);
-    if (animal) {
-      const trait = animal.traits[relatedTraitId];
-      const traitLevel = trait ? trait.level : 'none';
-      traitDistribution[traitLevel] += probability;
-    }
-  });
-  
-  // Calculate entropy before answering the question
-  // Higher entropy means more uncertainty, more potential for narrowing
-  let entropy = 0;
-  Object.values(traitDistribution).forEach(count => {
-    if (count > 0) {
-      const proportion = count / Object.values(candidateAnimals).reduce((sum, prob) => sum + prob, 0);
-      entropy -= proportion * Math.log2(proportion);
-    }
-  });
-  
-  // Return entropy as the narrowing score
-  // Higher entropy means more potential for narrowing down
-  return entropy * 10; // Scale for better comparison
+  // 平均narrowingScoreを計算
+  return (totalNarrowingScore / question.relatedTraits.length) * question.correctnessScore / 10;
 };
 
 /**
- * Calculate the correctness score for a question
- * @param question The question to evaluate
- * @param candidateAnimals Current candidate animals with their probabilities
- * @param animals All animals
+ * 質問に対するmatchScoreを計算する
+ * @param question 評価する質問
+ * @param answer ユーザーの回答（true = はい、false = いいえ）
  */
-export const calculateCorrectnessScore = (
+export const calculateMatchScore = (
   question: Question,
-  candidateAnimals: Record<string, number>,
-  animals: Animal[]
-): {
-  correctnessScore: number;
-  negationScore: number;
-  matchScore: number;
-  excludeScore: number;
-} => {
-  const relatedTraitId = question.relatedTraitId;
-  const trait = traits.find(t => t.id === relatedTraitId);
+  answer: boolean
+): number => {
+  let totalMatchScore = 0;
   
-  if (!trait) {
-    return {
-      correctnessScore: 0,
-      negationScore: 0,
-      matchScore: 0,
-      excludeScore: 0
-    };
+  // 各関連特性について処理
+  for (const traitRelation of question.relatedTraits) {
+    const relatedTraitId = traitRelation.traitId;
+    const trait = traits.find(t => t.id === relatedTraitId);
+    
+    if (!trait) continue;
+    
+    // 特性の重要度による重み付け
+    const importanceWeight = trait.importanceWeight / 10;
+    
+    // 回答が肯定的（はい）か否定的（いいえ）かに基づいてスコアを調整
+    const direction = answer ? 1 : -1;
+    
+    // 特性の関連度（matchScore）、精度（narrowingScore）、質問の信頼性（correctnessScore）による重み付け
+    const weightedScore = direction * traitRelation.matchScore * traitRelation.narrowingScore * question.correctnessScore;
+    
+    // 重要度を考慮した最終スコア
+    totalMatchScore += (weightedScore / 100) * importanceWeight;
   }
   
-  // Calculate negation power - how well a "no" answer can eliminate candidates
-  let negationScore = 0;
-  
-  // Calculate match score - how well a "yes" answer confirms important traits
-  let matchScore = 0;
-  
-  // Calculate exclusion score - how well a "yes" answer can eliminate unlikely candidates
-  let excludeScore = 0;
-  
-  // For each animal in candidates
-  Object.entries(candidateAnimals).forEach(([animalId, probability]) => {
-    const animal = animals.find(a => a.id === animalId);
-    if (animal) {
-      const animalTrait = animal.traits[relatedTraitId];
-      const traitLevel = animalTrait ? animalTrait.level : 'none';
-      
-      // If trait is high, a "no" answer would strongly negate this animal
-      if (traitLevel === 'high') {
-        negationScore += probability * trait.importanceWeight * 0.3;
-      }
-      
-      // If trait is important and high/medium, a "yes" answer would strongly confirm this animal
-      if ((traitLevel === 'high' || traitLevel === 'medium') && trait.importanceWeight >= 7) {
-        matchScore += probability * trait.importanceWeight * 0.3;
-      }
-      
-      // If trait is low/none, a "yes" answer would strongly exclude this animal
-      if (traitLevel === 'low' || traitLevel === 'none') {
-        excludeScore += probability * trait.importanceWeight * 0.4;
-      }
-    }
-  });
-  
-  // Calculate total correctness score
-  const correctnessScore = negationScore + matchScore + excludeScore;
-  
-  return {
-    correctnessScore,
-    negationScore,
-    matchScore,
-    excludeScore
-  };
+  return totalMatchScore;
 };
 
 /**
@@ -133,50 +102,91 @@ export const updateProbabilities = (
   candidateAnimals: Record<string, number>,
   animals: Animal[]
 ): Record<string, number> => {
-  const relatedTraitId = question.relatedTraitId;
   const updatedProbabilities: Record<string, number> = {};
-  const trait = traits.find(t => t.id === relatedTraitId);
   
-  if (!trait) return candidateAnimals;
-  
-  // Calculate likelihoods P(E|H) for each animal
+  // 各動物について更新確率を計算
   Object.entries(candidateAnimals).forEach(([animalId, priorProbability]) => {
     const animal = animals.find(a => a.id === animalId);
     if (!animal) return;
     
-    const animalTrait = animal.traits[relatedTraitId];
-    const traitLevel = animalTrait ? animalTrait.level : 'none';
+    let totalLikelihood = 0;
     
-    // Calculate likelihood based on trait level and answer
-    let likelihood = 0;
-    if (answer) { // Yes answer
-      // Probability of saying 'yes' given each trait level
-      switch (traitLevel) {
-        case 'high': likelihood = 0.9; break;
-        case 'medium': likelihood = 0.6; break;
-        case 'low': likelihood = 0.3; break;
-        case 'none': likelihood = 0.1; break;
-        default: likelihood = 0.5;
+    // 各関連特性について尤度を計算
+    for (const traitRelation of question.relatedTraits) {
+      const relatedTraitId = traitRelation.traitId;
+      const trait = traits.find(t => t.id === relatedTraitId);
+      
+      if (!trait) continue;
+      
+      const animalTrait = animal.traits[relatedTraitId];
+      const traitLevel = animalTrait ? animalTrait.level : 'none';
+      
+      // 特性レベルと回答に基づいて尤度を計算
+      let likelihood = 0;
+      
+      // 正負のmatchScoreを考慮
+      const isPositiveMatch = traitRelation.matchScore > 0;
+      const matchStrength = Math.abs(traitRelation.matchScore) / 10;
+      
+      if (answer) { // はいの回答
+        if (isPositiveMatch) {
+          // 肯定的な関連がある特性の場合
+          switch (traitLevel) {
+            case 'high': likelihood = 0.9 * matchStrength; break;
+            case 'medium': likelihood = 0.6 * matchStrength; break;
+            case 'low': likelihood = 0.3 * matchStrength; break;
+            case 'none': likelihood = 0.1 * matchStrength; break;
+            default: likelihood = 0.5 * matchStrength;
+          }
+        } else {
+          // 否定的な関連がある特性の場合（反転）
+          switch (traitLevel) {
+            case 'high': likelihood = 0.1 * matchStrength; break;
+            case 'medium': likelihood = 0.4 * matchStrength; break;
+            case 'low': likelihood = 0.7 * matchStrength; break;
+            case 'none': likelihood = 0.9 * matchStrength; break;
+            default: likelihood = 0.5 * matchStrength;
+          }
+        }
+      } else { // いいえの回答
+        if (isPositiveMatch) {
+          // 肯定的な関連がある特性の場合（反転）
+          switch (traitLevel) {
+            case 'high': likelihood = 0.1 * matchStrength; break;
+            case 'medium': likelihood = 0.4 * matchStrength; break;
+            case 'low': likelihood = 0.7 * matchStrength; break;
+            case 'none': likelihood = 0.9 * matchStrength; break;
+            default: likelihood = 0.5 * matchStrength;
+          }
+        } else {
+          // 否定的な関連がある特性の場合
+          switch (traitLevel) {
+            case 'high': likelihood = 0.9 * matchStrength; break;
+            case 'medium': likelihood = 0.6 * matchStrength; break;
+            case 'low': likelihood = 0.3 * matchStrength; break;
+            case 'none': likelihood = 0.1 * matchStrength; break;
+            default: likelihood = 0.5 * matchStrength;
+          }
+        }
       }
-    } else { // No answer
-      // Probability of saying 'no' given each trait level
-      switch (traitLevel) {
-        case 'high': likelihood = 0.1; break;
-        case 'medium': likelihood = 0.4; break;
-        case 'low': likelihood = 0.7; break;
-        case 'none': likelihood = 0.9; break;
-        default: likelihood = 0.5;
-      }
+      
+      // 特性の重要度による重み付け
+      likelihood = likelihood * (0.5 + trait.importanceWeight / 20);
+      
+      // 特性の鮮明度（narrowingScore）と質問の信頼性（correctnessScore）による重み付け
+      likelihood = likelihood * (traitRelation.narrowingScore / 10) * (question.correctnessScore / 10);
+      
+      totalLikelihood += likelihood;
     }
     
-    // Weight likelihood by trait importance
-    likelihood = likelihood * (0.5 + trait.importanceWeight / 20);
+    // 平均尤度を計算
+    const averageLikelihood = totalLikelihood / question.relatedTraits.length;
     
-    // Update probability using Bayes' theorem
-    updatedProbabilities[animalId] = priorProbability * likelihood;
+    // ベイズの定理を使用して確率を更新
+    updatedProbabilities[animalId] = priorProbability * averageLikelihood;
   });
   
-  // Normalize probabilities
+  // 確率を正規化
   const totalProbability = Object.values(updatedProbabilities).reduce((sum, prob) => sum + prob, 0);
   
   if (totalProbability > 0) {
@@ -201,51 +211,78 @@ export const selectBestQuestion = (
   askedQuestions: string[],
   candidateAnimals: Record<string, number>,
   animals: Animal[],
-  answeredCount: number
-): Question => {
-  // Filter out questions that have already been asked
-  const remainingQuestions = questions.filter(q => !askedQuestions.includes(q.id));
+  stage: 'early' | 'middle' | 'late' = 'middle'
+): Question | null => {
+  // Filter out already asked questions
+  const availableQuestions = questions.filter(q => !askedQuestions.includes(q.id));
+  
+  if (availableQuestions.length === 0) {
+    return null;
+  }
   
   // Calculate scores for each question
-  const scoredQuestions = remainingQuestions.map(question => {
-    // Calculate narrowing score
+  const questionScores = availableQuestions.map(question => {
+    // Calculate narrowing score dynamically
     const narrowingScore = calculateNarrowingScore(question, candidateAnimals, animals);
     
-    // Calculate correctness score
-    const { 
-      correctnessScore,
-      negationScore,
-      matchScore,
-      excludeScore
-    } = calculateCorrectnessScore(question, candidateAnimals, animals);
+    // 特性のカバレッジを計算
+    const coveredTraits = new Set<string>();
+    question.relatedTraits.forEach(relation => {
+      coveredTraits.add(relation.traitId);
+    });
     
-    // Adjust weights based on how many questions have been answered
-    // Early: focus on narrowing, Later: focus on correctness
-    const progress = Math.min(answeredCount / 10, 1); // Cap at 1 after 10 questions
+    // 既に質問された特性の数を計算
+    const askedQuestionsObjects = questions.filter(q => askedQuestions.includes(q.id));
+    const askedTraits = new Set<string>();
+    askedQuestionsObjects.forEach(q => {
+      q.relatedTraits.forEach(relation => {
+        askedTraits.add(relation.traitId);
+      });
+    });
     
-    // Calculate weights alpha and beta based on progress
-    const alpha = 1 - (progress * 0.7); // Starts at 1, goes down to 0.3
-    const beta = 0.3 + (progress * 0.7); // Starts at 0.3, goes up to 1
+    // 新しい特性をカバーする質問のボーナス
+    let newTraitBonus = 0;
+    coveredTraits.forEach(trait => {
+      if (!askedTraits.has(trait)) {
+        newTraitBonus += 3;
+      }
+    });
     
-    // Calculate total score
-    const totalScore = (alpha * narrowingScore) + (beta * correctnessScore);
+    // Combine scores based on the stage of the test
+    let finalScore = 0;
     
-    return {
-      ...question,
-      narrowingScore,
-      correctnessScore,
-      negationScore,
-      matchScore,
-      excludeScore,
-      totalScore
-    };
+    // Early stage: focus on traits with high weights and diversifying
+    if (stage === 'early') {
+      // 重要な特性への重み付けを考慮
+      let traitImportanceScore = 0;
+      question.relatedTraits.forEach(relation => {
+        const trait = traits.find(t => t.id === relation.traitId);
+        if (trait) {
+          traitImportanceScore += trait.importanceWeight * (relation.matchScore / 10);
+        }
+      });
+      
+      finalScore = 0.6 * traitImportanceScore + 0.2 * narrowingScore + 0.2 * question.correctnessScore + newTraitBonus;
+    }
+    // Middle stage: balance between narrowing and correctness
+    else if (stage === 'middle') {
+      finalScore = 0.5 * narrowingScore + 0.3 * question.correctnessScore + newTraitBonus;
+    }
+    // Late stage: focus on high correctness for final refinement
+    else if (stage === 'late') {
+      finalScore = 0.3 * narrowingScore + 0.7 * question.correctnessScore;
+    }
+    
+    return { question, score: finalScore };
   });
   
-  // Sort questions by total score in descending order
-  scoredQuestions.sort((a, b) => b.totalScore - a.totalScore);
+  // Find the best question
+  const bestQuestion = questionScores.reduce(
+    (best, current) => (current.score > best.score ? current : best), 
+    { question: availableQuestions[0], score: -Infinity }
+  );
   
-  // Return the question with the highest score
-  return scoredQuestions[0];
+  return bestQuestion.question;
 };
 
 /**
@@ -262,92 +299,103 @@ export const evaluateCandidates = (
   answers: Record<string, boolean>,
   questions: Question[]
 ): {animal: Animal, score: number, traitMatches: TraitMatch[]}[] => {
-  // Array to store scores
-  const scores: {animal: Animal, score: number, traitMatches: TraitMatch[]}[] = [];
+  // Create a map of trait scores for each animal
+  const traitScores: Record<string, Record<string, number>> = {};
+  const answeredQuestions = Object.keys(answers).map(id => 
+    questions.find(q => q.id === id)
+  ).filter((q): q is Question => q !== undefined);
   
-  // For each candidate, calculate a more comprehensive similarity score
-  Object.entries(candidateAnimals).forEach(([animalId, probability]) => {
-    const animal = animals.find(a => a.id === animalId);
-    if (!animal) return;
+  // Initialize trait scores for each animal
+  animals.forEach(animal => {
+    traitScores[animal.id] = {};
     
-    // Start with Bayesian probability
-    let score = probability * 0.7; // 70% weight to Bayesian inference
+    // Initialize all traits to 0
+    traits.forEach(trait => {
+      traitScores[animal.id][trait.id] = 0;
+    });
+  });
+  
+  // Calculate trait scores based on answers
+  answeredQuestions.forEach(question => {
+    const answer = answers[question.id];
     
-    // Calculate trait matching score (30% weight)
-    let traitMatchScore = 0;
-    let totalWeight = 0;
-    
-    // Array to store trait matches
-    const traitMatches: TraitMatch[] = [];
-    
-    // For each answer, check how well it matches the animal's trait
-    Object.entries(answers).forEach(([questionId, answer]) => {
-      // Find the question
-      const question = questions.find(q => q.id === questionId);
-      if (!question) return;
+    // 各関連特性についてスコアを計算
+    question.relatedTraits.forEach(traitRelation => {
+      const traitId = traitRelation.traitId;
       
-      // Get the related trait
-      const relatedTraitId = question.relatedTraitId;
-      const trait = traits.find(t => t.id === relatedTraitId);
-      if (!trait) return;
+      // 回答に基づいてスコアを調整
+      const direction = answer ? 1 : -1;
       
-      // Get the animal's trait level
-      const animalTrait = animal.traits[relatedTraitId];
-      const traitLevel = animalTrait ? animalTrait.level : 'none';
+      // この特性に対する重み付けスコア
+      const score = direction * traitRelation.matchScore * (question.correctnessScore / 10);
       
-      // Calculate match score based on answer and trait level
-      let match = 0;
-      if (answer) { // User answered "yes"
-        switch (traitLevel) {
-          case 'high': match = 1.0; break;
-          case 'medium': match = 0.7; break;
-          case 'low': match = 0.3; break;
-          case 'none': match = 0; break;
-          default: match = 0.5;
-        }
-      } else { // User answered "no"
-        switch (traitLevel) {
-          case 'high': match = 0; break;
-          case 'medium': match = 0.3; break;
-          case 'low': match = 0.7; break;
-          case 'none': match = 1.0; break;
-          default: match = 0.5;
-        }
-      }
-      
-      // Weight match by trait importance
-      traitMatchScore += match * trait.importanceWeight;
-      totalWeight += trait.importanceWeight;
-      
-      // Add to trait matches
-      traitMatches.push({
-        trait: {
-          id: trait.id,
-          name: trait.name,
-          description: trait.description
-        },
-        level: traitLevel,
-        matchScore: match
+      // 各動物についてこの特性のスコアを更新
+      animals.forEach(animal => {
+        traitScores[animal.id][traitId] += score;
       });
     });
+  });
+  
+  // Calculate final match scores for each animal
+  const animalMatches = animals.map(animal => {
+    let totalScore = 0;
+    const traitMatches: TraitMatch[] = [];
     
-    // Normalize trait match score
-    if (totalWeight > 0) {
-      traitMatchScore = traitMatchScore / totalWeight;
-    }
+    // For each trait, calculate how well it matches
+    traits.forEach(trait => {
+      const traitScore = traitScores[animal.id][trait.id];
+      const animalTrait = animal.traits[trait.id];
+      const traitLevel = animalTrait?.level || 'none';
+      
+      // Scale trait score based on animal's trait level
+      let levelMultiplier;
+      switch(traitLevel) {
+        case 'high': levelMultiplier = 1.5; break;
+        case 'medium': levelMultiplier = 1.0; break;
+        case 'low': levelMultiplier = 0.5; break;
+        case 'none': 
+        default: levelMultiplier = 0.1;
+      }
+      
+      // Weight by trait importance
+      const importance = trait.importanceWeight / 10;
+      
+      // Calculate final trait match score
+      const matchScore = traitScore * levelMultiplier * importance;
+      
+      // Add to total score
+      totalScore += matchScore;
+      
+      // Add to trait matches list
+      if (traitLevel !== 'none') {
+        traitMatches.push({
+          trait: {
+            id: trait.id,
+            name: trait.name,
+            description: trait.description
+          },
+          level: traitLevel,
+          matchScore: matchScore
+        });
+      }
+    });
     
-    // Add trait match component to final score
-    score += traitMatchScore * 0.3; // 30% weight to trait matching
+    // Add in the base probability from Bayesian updates
+    const baseProbability = candidateAnimals[animal.id] || 0;
+    totalScore = totalScore * 0.7 + baseProbability * 10 * 0.3;
     
-    // Sort trait matches by match score (highest first)
+    // Sort trait matches by match score
     traitMatches.sort((a, b) => b.matchScore - a.matchScore);
     
-    // Add to scores array
-    scores.push({ animal, score, traitMatches });
+    return {
+      animal, 
+      score: totalScore, 
+      traitMatches
+    };
   });
   
   // Sort by score in descending order
-  scores.sort((a, b) => b.score - a.score);
+  animalMatches.sort((a, b) => b.score - a.score);
   
-  return scores;
+  return animalMatches;
 };

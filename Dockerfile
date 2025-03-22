@@ -1,18 +1,21 @@
+# Build stage
 FROM node:18-alpine as build
-
 WORKDIR /app
-
 COPY package*.json ./
 RUN npm install
-
 COPY . .
 RUN npm run build
 
-FROM nginx:stable-alpine
+# Use a lightweight server dedicated for static content
+FROM node:18-alpine
+WORKDIR /app
+COPY --from=build /app/dist ./dist
 
-COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Install serve
+RUN npm install -g serve
 
-EXPOSE 8080
+# The port that Cloud Run will use
+ENV PORT=8080
 
-CMD ["nginx", "-g", "daemon off;"]
+# Start the server and explicitly listen on PORT
+CMD serve -s dist -l ${PORT}
