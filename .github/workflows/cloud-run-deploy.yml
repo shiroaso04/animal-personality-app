@@ -1,0 +1,71 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'  # vから始まるタグが作成された時に実行
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build app
+      run: npm run build
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+
+    - name: Build and push Docker image
+      env:
+        PROJECT_ID: zippy-sublime-426109-c8
+        IMAGE_NAME: animal-personality-app
+      run: |
+        # タグの場合はバージョンを取得、ない場合は'latest'を設定
+        if [[ $GITHUB_REF == refs/tags/* ]]; then
+          VERSION=${GITHUB_REF#refs/tags/}
+        else
+          VERSION=latest
+        fi
+        
+        # Dockerイメージをビルド
+        gcloud builds submit --tag gcr.io/$PROJECT_ID/$IMAGE_NAME:$VERSION
+
+    - name: Deploy to Cloud Run
+      env:
+        PROJECT_ID: zippy-sublime-426109-c8
+        SERVICE_NAME: animal-personality-app
+        REGION: asia-northeast1
+      run: |
+        # タグの場合はバージョンを取得、ない場合は'latest'を設定
+        if [[ $GITHUB_REF == refs/tags/* ]]; then
+          VERSION=${GITHUB_REF#refs/tags/}
+        else
+          VERSION=latest
+        fi
+        
+        # Cloud Runにデプロイ
+        gcloud run deploy $SERVICE_NAME \
+          --image gcr.io/$PROJECT_ID/$SERVICE_NAME:$VERSION \
+          --platform managed \
+          --region $REGION \
+          --allow-unauthenticated
