@@ -22,7 +22,6 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { useState } from 'react';
 import { TraitMatch } from '../types';
-import { traits } from '../data/traits';
 
 // Register ChartJS components
 ChartJS.register(ArcElement, ChartTooltip, Legend);
@@ -124,7 +123,7 @@ const ResultScreen = () => {
                 justifyContent: 'center',
                 alignItems: 'center'
               }}>
-                <Box sx={{ width: '80%', maxWidth: 200 }}>
+                <Box sx={{ width: '80%', maxWidth: 200, textAlign: 'center' }}>
                   <Doughnut data={chartData} options={chartOptions} />
                 </Box>
               </Box>
@@ -141,20 +140,20 @@ const ResultScreen = () => {
               </Typography>
               
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
-                {Object.entries(resultAnimal.traits)
-                  .filter(([_, level]) => level === 'high' || level === 'medium')
-                  .map(([id, level]) => {
-                    const trait = traits.find(t => t.id === id);
-                    if (!trait) return null;
-                    
+                {topMatches[0]?.traitMatches
+                  // 特性IDで重複を除去
+                  ?.filter((traitMatch, index, self) => 
+                    index === self.findIndex(t => t.trait.id === traitMatch.trait.id)
+                  )
+                  ?.map(traitMatch => {
                     // 特性の強さをパーセンテージで表現
-                    const strengthValue = level === 'high' ? 100 : level === 'medium' ? 60 : level === 'low' ? 30 : 0;
-                    const strengthColor = level === 'high' ? '#3498db' : level === 'medium' ? '#f39c12' : '#95a5a6';
+                    const strengthValue = traitMatch.level === 'high' ? 100 : traitMatch.level === 'medium' ? 60 : traitMatch.level === 'low' ? 30 : 0;
+                    const strengthColor = traitMatch.level === 'high' ? '#3498db' : traitMatch.level === 'medium' ? '#f39c12' : '#95a5a6';
                     
                     return (
-                      <Box key={id} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Box key={traitMatch.trait.id} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                         <Typography variant="body2" sx={{ minWidth: 100, fontWeight: 'medium' }}>
-                          {trait.name}
+                          {traitMatch.trait.name}
                         </Typography>
                         <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                           <Box sx={{ flex: 1, height: 8, bgcolor: 'rgba(0,0,0,0.1)', borderRadius: 4 }}>
@@ -277,7 +276,12 @@ const ResultScreen = () => {
                       性格特性
                     </Typography>
                     <Grid container spacing={1}>
-                      {match.traitMatches.map((traitMatch: TraitMatch) => {
+                      {match.traitMatches
+                        // 特性IDで重複を除去
+                        ?.filter((traitMatch, index, self) => 
+                          index === self.findIndex(t => t.trait.id === traitMatch.trait.id)
+                        )
+                        ?.map((traitMatch: TraitMatch) => {
                         // 特性の強さをパーセンテージで表現
                         const strengthValue = traitMatch.level === 'high' ? 100 : 
                                            traitMatch.level === 'medium' ? 60 : 

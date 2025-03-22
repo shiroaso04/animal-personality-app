@@ -18,6 +18,12 @@ interface TestContextType {
 // Create the context
 const TestContext = createContext<TestContextType | undefined>(undefined);
 
+// Filter to use only the first 8 animals (ID 01-08)
+const filteredAnimals = allAnimals.filter(animal => {
+  const animalId = parseInt(animal.id, 10);
+  return animalId >= 1 && animalId <= 8;
+});
+
 // Initial state
 const initialState: TestState = {
   currentQuestion: null,
@@ -39,8 +45,8 @@ export const TestProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const startTest = () => {
     // Initialize candidateAnimals with equal probabilities
     const initialProbabilities: Record<string, number> = {};
-    allAnimals.forEach(animal => {
-      initialProbabilities[animal.id] = 1 / allAnimals.length;
+    filteredAnimals.forEach(animal => {
+      initialProbabilities[animal.id] = 1 / filteredAnimals.length;
     });
 
     // Select the first question
@@ -48,7 +54,7 @@ export const TestProvider: React.FC<{ children: React.ReactNode }> = ({ children
       allQuestions,
       [],
       initialProbabilities,
-      allAnimals,
+      filteredAnimals,
       0
     );
 
@@ -105,19 +111,33 @@ export const TestProvider: React.FC<{ children: React.ReactNode }> = ({ children
       answer,
       state.currentQuestion,
       state.candidateAnimals,
-      allAnimals
+      filteredAnimals
     );
 
-    // Check if we should end the test
-    const shouldEndTest = updatedAskedQuestions.length >= 15 || 
-      Object.entries(updatedProbabilities)
-        .sort((a, b) => b[1] - a[1])[0]?.[1] > 0.75;
+    // Count unique traits that have been evaluated based on asked questions
+    const evaluatedTraits = new Set<string>();
+    updatedAskedQuestions.forEach(questionId => {
+      const question = allQuestions.find(q => q.id === questionId);
+      if (question) {
+        evaluatedTraits.add(question.relatedTraitId);
+      }
+    });
+    
+    // Only check for high probability match if we've evaluated at least 6 unique traits
+    // or if we've reached the maximum questions (15)
+    const hasEnoughTraits = evaluatedTraits.size >= 6;
+    const reachedMaxQuestions = updatedAskedQuestions.length >= 15;
+    const highestProbability = Object.entries(updatedProbabilities)
+      .sort((a, b) => b[1] - a[1])[0]?.[1] || 0;
+    
+    const shouldEndTest = reachedMaxQuestions || 
+      (hasEnoughTraits && highestProbability > 0.75);
 
     if (shouldEndTest) {
       // Calculate final scores
       const finalScores = evaluateCandidates(
         updatedProbabilities,
-        allAnimals,
+        filteredAnimals,
         updatedAnswers,
         allQuestions
       );
@@ -141,7 +161,7 @@ export const TestProvider: React.FC<{ children: React.ReactNode }> = ({ children
         allQuestions,
         updatedAskedQuestions,
         updatedProbabilities,
-        allAnimals,
+        filteredAnimals,
         updatedAskedQuestions.length
       );
 
@@ -177,8 +197,8 @@ export const TestProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let updatedProbabilities: Record<string, number> = {};
     
     // Start with equal probabilities
-    allAnimals.forEach(animal => {
-      updatedProbabilities[animal.id] = 1 / allAnimals.length;
+    filteredAnimals.forEach(animal => {
+      updatedProbabilities[animal.id] = 1 / filteredAnimals.length;
     });
     
     // Apply each answer to update probabilities
@@ -189,7 +209,7 @@ export const TestProvider: React.FC<{ children: React.ReactNode }> = ({ children
           answer,
           question,
           updatedProbabilities,
-          allAnimals
+          filteredAnimals
         );
       }
     });

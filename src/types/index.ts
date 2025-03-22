@@ -9,6 +9,19 @@ export interface BehavioralTrait {
   importanceWeight: number; // How important this trait is for identification (1-10)
 }
 
+// Define evidence structure for trait
+export interface TraitEvidence {
+  description: string;
+  title: string;
+  source: string;
+}
+
+// Define trait with level and evidence
+export interface Trait {
+  level: TraitLevel;
+  evidence: TraitEvidence[];
+}
+
 // Define an animal with its behavioral traits
 export interface Animal {
   id: string;
@@ -16,7 +29,7 @@ export interface Animal {
   japaneseName: string;
   description: string;
   imageUrl: string;
-  traits: Record<string, TraitLevel>; // Maps trait id to level
+  traits: Record<string, Trait>; // Maps trait id to trait object with level and evidence
 }
 
 // Define a question for the personality test

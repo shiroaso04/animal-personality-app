@@ -27,7 +27,8 @@ export const calculateNarrowingScore = (
   Object.entries(candidateAnimals).forEach(([animalId, probability]) => {
     const animal = animals.find(a => a.id === animalId);
     if (animal) {
-      const traitLevel = animal.traits[relatedTraitId] || 'none';
+      const trait = animal.traits[relatedTraitId];
+      const traitLevel = trait ? trait.level : 'none';
       traitDistribution[traitLevel] += probability;
     }
   });
@@ -88,7 +89,8 @@ export const calculateCorrectnessScore = (
   Object.entries(candidateAnimals).forEach(([animalId, probability]) => {
     const animal = animals.find(a => a.id === animalId);
     if (animal) {
-      const traitLevel = animal.traits[relatedTraitId] || 'none';
+      const animalTrait = animal.traits[relatedTraitId];
+      const traitLevel = animalTrait ? animalTrait.level : 'none';
       
       // If trait is high, a "no" answer would strongly negate this animal
       if (traitLevel === 'high') {
@@ -142,7 +144,8 @@ export const updateProbabilities = (
     const animal = animals.find(a => a.id === animalId);
     if (!animal) return;
     
-    const traitLevel = animal.traits[relatedTraitId] || 'none';
+    const animalTrait = animal.traits[relatedTraitId];
+    const traitLevel = animalTrait ? animalTrait.level : 'none';
     
     // Calculate likelihood based on trait level and answer
     let likelihood = 0;
@@ -289,7 +292,8 @@ export const evaluateCandidates = (
       if (!trait) return;
       
       // Get the animal's trait level
-      const traitLevel = animal.traits[relatedTraitId] || 'none';
+      const animalTrait = animal.traits[relatedTraitId];
+      const traitLevel = animalTrait ? animalTrait.level : 'none';
       
       // Calculate match score based on answer and trait level
       let match = 0;
@@ -315,19 +319,16 @@ export const evaluateCandidates = (
       traitMatchScore += match * trait.importanceWeight;
       totalWeight += trait.importanceWeight;
       
-      // Add to trait matches if not already added
-      const existingTraitMatch = traitMatches.find(tm => tm.trait.id === trait.id);
-      if (!existingTraitMatch) {
-        traitMatches.push({
-          trait: {
-            id: trait.id,
-            name: trait.name,
-            description: trait.description
-          },
-          level: traitLevel,
-          matchScore: match
-        });
-      }
+      // Add to trait matches
+      traitMatches.push({
+        trait: {
+          id: trait.id,
+          name: trait.name,
+          description: trait.description
+        },
+        level: traitLevel,
+        matchScore: match
+      });
     });
     
     // Normalize trait match score

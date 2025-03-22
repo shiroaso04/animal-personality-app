@@ -94,7 +94,7 @@ const slides = [
     content: (
       <>
         <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', color: '#2c3e50', mt: 2 }}>
-          49の問いかけで見えてくる、あなたらしさ
+          さまざまな問いかけで見えてくる、あなたらしさ
         </Typography>
         <Typography paragraph>
           一つひとつの質問は、人との関わり方、大切にする空間、感情の表し方など、
